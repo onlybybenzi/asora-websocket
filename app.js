@@ -8,7 +8,7 @@ const server = http.createServer(app);
 // Allow your Next.js frontend to connect
 const io = new Server(server, {
   cors: {
-    origin: "https://your-frontend-url.up.railway.app", 
+    origin: "http://localhost:3000", 
     methods: ["GET", "POST"]
   }
 });
