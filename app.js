@@ -1,21 +1,51 @@
 const express = require('express');
-const path = require('path');
-const indexRouter = require('./routes/index');
+const http = require('http');
+const { Server } = require("socket.io");
 
 const app = express();
-const PORT = 3000;
+const server = http.createServer(app);
 
-// Serve static files from the "public" directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Allow your Next.js frontend to connect
+const io = new Server(server, {
+  cors: {
+    origin: "https://your-frontend-url.up.railway.app", 
+    methods: ["GET", "POST"]
+  }
+});
 
-// Use the router for handling routes
-app.use('/', indexRouter);
+// Store user statuses in memory (or Redis for scaling later)
+let onlineUsers = new Map();
 
-// Catch-all route for handling 404 errors
-app.use((req, res, next) => {
-    res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  // 1. User logs in -> Client emits "join" event with their User ID
+  socket.on('join', (userId) => {
+    onlineUsers.set(socket.id, userId);
+    
+    // Broadcast to everyone that this user is online
+    io.emit('user_online', { userId: userId, status: 'online' });
   });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
+  // 2. User sets status to DND/Idle
+  socket.on('change_status', (status) => {
+    const userId = onlineUsers.get(socket.id);
+    if(userId) {
+       io.emit('user_status_change', { userId, status });
+    }
+  });
+
+  // 3. User disconnects (Closes tab/Internet dies) -> AUTOMATIC
+  socket.on('disconnect', () => {
+    const userId = onlineUsers.get(socket.id);
+    if (userId) {
+      io.emit('user_offline', userId);
+      onlineUsers.delete(socket.id);
+    }
+  });
+});
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Socket server running on port ${PORT}`);
 });
