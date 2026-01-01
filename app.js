@@ -15,6 +15,9 @@ const io = new Server(server, {
 // Map socketId -> { userId, lastActive }
 let clients = new Map();
 
+// Map to track read cursors: chatId -> Map<userId, { messageId, username, avatar }>
+let readCursors = new Map();
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -52,11 +55,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ========== READ RECEIPTS ==========
-  socket.on('read_messages', (data) => {
-    // data = { chatId, readerId, readerUsername, readerAvatar }
-    // Broadcast to everyone except the sender
-    socket.broadcast.emit('messages_read', data);
+  // ========== READ CURSORS (Mark as Read) ==========
+  socket.on('mark_chat_read', (data) => {
+    // data = { chatId, messageId, userId, username, avatar }
+    const { chatId, messageId, userId, username, avatar } = data;
+    
+    // Store the read cursor
+    if (!readCursors.has(chatId)) {
+      readCursors.set(chatId, new Map());
+    }
+    readCursors.get(chatId).set(userId, { messageId, username, avatar });
+    
+    // Broadcast to others in this chat that this user has read up to this message
+    socket.broadcast.emit('user_read_receipt', {
+      chatId,
+      userId,
+      username,
+      avatar,
+      messageId
+    });
+    
+    console.log(`User ${username} read chat ${chatId} up to message ${messageId}`);
   });
 
   // ========== TYPING INDICATORS ==========
