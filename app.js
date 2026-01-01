@@ -44,13 +44,19 @@ io.on('connection', (socket) => {
     // data = { chatId, recipientIds, message }
     if (data.recipientIds && Array.isArray(data.recipientIds)) {
       data.recipientIds.forEach(recipientId => {
-        // Send to the specific user room
         io.to(recipientId).emit('new_message', {
           chatId: data.chatId,
           message: data.message
         });
       });
     }
+  });
+
+  // ========== READ RECEIPTS ==========
+  socket.on('read_messages', (data) => {
+    // data = { chatId, readerId, readerUsername, readerAvatar }
+    // Broadcast to everyone except the sender
+    socket.broadcast.emit('messages_read', data);
   });
 
   // ========== TYPING INDICATORS ==========
